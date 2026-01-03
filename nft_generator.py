@@ -3,7 +3,7 @@ from PIL import Image
 import json
 import os
 
-# Define paths to your assets (populated based on the folders you listed)
+# Define paths to assets
 asset_paths = {
     'background': [
         'assets/Background/Aqua.png',
@@ -75,7 +75,7 @@ def merge_assets(layers):
         asset = choose_asset(layer)
         if asset is not None:  # If the chosen asset is not None, merge it
             asset_image = Image.open(asset)
-            base_image.paste(asset_image, (0, 0), asset_image)  # Assuming assets are transparent PNGs
+            base_image.paste(asset_image, (0, 0), asset_image) 
 
     return base_image
 
@@ -84,8 +84,8 @@ def generate_metadata(token_id, image_path, attributes):
     metadata = {
         "name": f"NFT #{token_id}",
         "description": "Generated NFT Collection",
-        "external_url": "https://yourwebsite.com",  # Replace with your website
-        "image": f"ipfs://your-ipfs-url/{token_id}.png",  # IPFS URL for the image
+        "external_url": "https://yourwebsite.com",  # Replace with project website
+        "image": f"ipfs://your-ipfs-url/{token_id}.png",  # IPFS URL for the image - will be updated later
         "attributes": attributes,
         "tokenId": token_id,
         "properties": {
@@ -139,3 +139,4 @@ def generate_nfts(num_nfts):
 
 # Example usage
 generate_nfts(200)  # Create 200 NFTs
+
