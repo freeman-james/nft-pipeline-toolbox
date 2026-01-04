@@ -21,36 +21,18 @@ This tool combines layered image assets using weighted rarity rules and outputs 
 - Pillow (PIL)
 - JSON
 
----
-
-## Project Structure
-
-assets/
-├── Background/
-├── Body/
-├── Head/
-├── Eyes/
-└── Accessory/
-
-output/
-├── nft_1.png
-├── nft_1.json
-└── ...
-
-yaml
-Copy code
 
 ---
 
 ## Installation
 
-```bash
+
 pip install pillow
+
 Usage
 Configure asset paths, rarity weights, and layer order in the script, then run:
 
-python
-Copy code
+
 generate_nfts(
     total_nfts=100,
     accessories_per_nft=5
@@ -58,6 +40,7 @@ generate_nfts(
 Generated images and metadata will be written to the output/ directory.
 
 Configuration
+
 Asset Paths
 Assets are grouped by category and defined in the asset_paths dictionary.
 Categories can be added or removed as needed.
@@ -65,8 +48,6 @@ Categories can be added or removed as needed.
 Rarity Weights
 Trait rarity is controlled via weighted probability lists:
 
-python
-Copy code
 rarity_weights = {
     "background": [50, 50, 50, 50],
     "body": [80, 70, 100],
@@ -77,8 +58,6 @@ rarity_weights = {
 Higher weights increase the likelihood of selection.
 
 Layer Order
-python
-Copy code
 layer_order = [
     "background",
     "body",
@@ -96,7 +75,6 @@ A composite PNG image
 A corresponding JSON metadata file compatible with ERC-721 standards
 
 Design Notes
-Assets are composited deterministically to ensure reproducible output
 
 Rarity weights allow precise control of trait distribution
 
@@ -104,8 +82,3 @@ Metadata follows ERC-721 conventions for marketplace compatibility
 
 License
 MIT License
-
-yaml
-Copy code
-
----
