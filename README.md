@@ -27,7 +27,7 @@ This tool combines layered image assets using weighted rarity rules and outputs 
 Clone the repository and install dependencies:
 
 ```bash
-git clone https://github.com/starfminer/nft-asset-combining.git
+git clone https://github.com/freeman-james/nft-asset-generator.git
 cd nft-asset-combining
 pip install pillow
 ```
