@@ -1,4 +1,4 @@
-# 'NFT Asset Generator (ERC-721 Compatible)'
+# `NFT Asset Generator (ERC-721 Compatible)`
 
 A configurable Python-based asset generation pipeline for creating ERC-721 NFT collections.
 
