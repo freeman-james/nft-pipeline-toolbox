@@ -1,7 +1,7 @@
 import os
 from PIL import Image
 
-OUTPUT_DIR = "resized"
+OUTPUT_DIR = "resized_png"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 for filename in os.listdir("."):
