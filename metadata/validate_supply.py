@@ -1,4 +1,3 @@
-import argparse
 import json
 import os
 import re
@@ -6,26 +5,24 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+ID_JSON_RE = re.compile(r"^(\d+)\.json$", re.IGNORECASE)
+ID_IMG_RE = re.compile(r"^(\d+)\.png$", re.IGNORECASE)
 
-ID_RE = re.compile(r"^(\d+)\.(png|json)$", re.IGNORECASE)
 
-
-def collect_ids(folder: Path, exts: tuple[str, ...]) -> dict[int, Path]:
-    """
-    Collect files named like {id}.{ext} where id is an integer.
-    Returns mapping id -> path.
-    """
-    mapping: dict[int, Path] = {}
+def collect_ids(folder: Path, is_image=False) -> dict[int, Path]:
+    mapping = {}
     if not folder.exists():
         return mapping
 
     for p in folder.iterdir():
         if not p.is_file():
             continue
-        if p.suffix.lower() not in exts:
+        if is_image and not p.suffix.lower() == ".png":
+            continue
+        if not is_image and not p.suffix.lower() == ".json":
             continue
 
-        m = ID_RE.match(p.name)
+        m = ID_IMG_RE.match(p.name) if is_image else ID_JSON_RE.match(p.name)
         if not m:
             continue
         token_id = int(m.group(1))
@@ -34,166 +31,108 @@ def collect_ids(folder: Path, exts: tuple[str, ...]) -> dict[int, Path]:
     return mapping
 
 
-def find_duplicates(folder: Path) -> list[str]:
-    if not folder.exists():
-        return []
-    names = [p.name.lower() for p in folder.iterdir() if p.is_file()]
-    counts = Counter(names)
-    return [name for name, c in counts.items() if c > 1]
+def trait_signature(data: dict) -> str:
+    """
+    Create deterministic signature from attributes to validate uniqueness.
+    """
+    attrs = data.get("attributes", [])
+    if not isinstance(attrs, list):
+        return "attributes:INVALID"
+
+    pairs = []
+    for a in attrs:
+        if not isinstance(a, dict):
+            continue
+        t = str(a.get("trait_type", "")).strip().lower()
+        v = str(a.get("value", "")).strip().lower()
+        pairs.append((t, v))
+
+    pairs.sort()
+    return "|".join(f"{t}={v}" for t, v in pairs)
 
 
-def try_load_json(path: Path) -> tuple[bool, str]:
-    try:
-        with path.open("r", encoding="utf-8") as f:
-            json.load(f)
-        return True, ""
-    except Exception as e:
-        return False, str(e)
+def validate_uniqueness(meta_files: dict[int, Path]) -> bool:
+    sig_map = {}
+    dupes = []
+
+    for token_id, path in meta_files.items():
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            print(f"❌ {path.name} invalid JSON: {e}")
+            return False
+
+        sig = trait_signature(data)
+
+        if sig in sig_map:
+            dupes.append((token_id, sig_map[sig]))
+        else:
+            sig_map[sig] = token_id
+
+    if dupes:
+        print(f"❌ Duplicate trait combinations found: {len(dupes)}")
+        for a, b in dupes[:20]:
+            print(f"  - Token {a} duplicates token {b}")
+        if len(dupes) > 20:
+            print("  ...")
+        return False
+
+    print("✅ All metadata trait combinations are unique.\n")
+    return True
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Validate NFT supply integrity: matching image+metadata IDs, missing/extra IDs, and JSON validity."
-    )
-    parser.add_argument("--images-dir", default=".", help="Folder containing PNG files (default: current folder)")
-    parser.add_argument("--metadata-dir", default="metadata", help="Folder containing JSON metadata (default: metadata)")
-    parser.add_argument("--min-id", type=int, default=None, help="Minimum token ID expected (optional)")
-    parser.add_argument("--max-id", type=int, default=None, help="Maximum token ID expected (optional)")
-    parser.add_argument(
-        "--check-image-field",
-        action="store_true",
-        help='If set, checks metadata["image"] ends with "<id>.png" (best-effort).',
-    )
+    images_dir = Path(".").resolve()
+    metadata_dir = Path("metadata").resolve()
 
-    args = parser.parse_args()
+    print(f"📁 Scanning Images:   {images_dir}")
+    print(f"📁 Scanning Metadata: {metadata_dir}\n")
 
-    images_dir = Path(args.images_dir).resolve()
-    metadata_dir = Path(args.metadata_dir).resolve()
+    img_ids = collect_ids(images_dir, is_image=True)
+    meta_ids = collect_ids(metadata_dir)
 
-    print(f"Images dir:   {images_dir}")
-    print(f"Metadata dir: {metadata_dir}")
-    print("")
-
-    # Duplicates by name
-    img_dupes = find_duplicates(images_dir)
-    meta_dupes = find_duplicates(metadata_dir)
-
-    if img_dupes:
-        print("⚠️ Duplicate image filenames detected (case-insensitive):")
-        for n in img_dupes:
-            print(f"  - {n}")
-        print("")
-    if meta_dupes:
-        print("⚠️ Duplicate metadata filenames detected (case-insensitive):")
-        for n in meta_dupes:
-            print(f"  - {n}")
-        print("")
-
-    image_ids = collect_ids(images_dir, (".png",))
-    meta_ids = collect_ids(metadata_dir, (".json",))
-
-    if not image_ids:
-        print("❌ No PNG files found named like 1.png, 2.png, ... in images dir.")
+    if not img_ids:
+        print("❌ No PNG images found named like 1.png, 2.png, ...")
         sys.exit(1)
 
     if not meta_ids:
-        print("❌ No JSON metadata files found named like 1.json, 2.json, ... in metadata dir.")
+        print("❌ No metadata JSON files found named like 1.json, 2.json, ... in /metadata")
         sys.exit(1)
 
-    image_set = set(image_ids.keys())
+    img_set = set(img_ids.keys())
     meta_set = set(meta_ids.keys())
-
-    missing_images = sorted(meta_set - image_set)
-    missing_meta = sorted(image_set - meta_set)
-    common = sorted(image_set & meta_set)
-
-    # Determine expected range
-    min_id = args.min_id if args.min_id is not None else (min(common) if common else None)
-    max_id = args.max_id if args.max_id is not None else (max(common) if common else None)
-
-    if min_id is not None and max_id is not None:
-        expected = set(range(min_id, max_id + 1))
-        gap_images = sorted(expected - image_set)
-        gap_meta = sorted(expected - meta_set)
-    else:
-        expected = None
-        gap_images, gap_meta = [], []
+    common = sorted(img_set & meta_set)
 
     print("=== Supply Summary ===")
-    print(f"Images found:   {len(image_set)}")
+    print(f"Images found:   {len(img_set)}")
     print(f"Metadata found: {len(meta_set)}")
+    print(f"Overlapping IDs: {len(common)}")
     if common:
-        print(f"Overlapping IDs: {len(common)} (min={min(common)}, max={max(common)})")
+        print(f"ID range detected: {min(common)} – {max(common)}")
     print("")
 
+    # Validate missing files
+    missing_images = sorted(meta_set - img_set)
+    missing_meta = sorted(img_set - meta_set)
+
     if missing_images:
-        print(f"❌ Missing images for {len(missing_images)} IDs (present in metadata, missing PNG):")
-        print("   " + ", ".join(map(str, missing_images[:50])) + (" ..." if len(missing_images) > 50 else ""))
-        print("")
+        print(f"❌ Missing images for {len(missing_images)} IDs:")
+        print("  " + ", ".join(map(str, missing_images[:50])) + (" ..." if len(missing_images) > 50 else "") + "\n")
     if missing_meta:
-        print(f"❌ Missing metadata for {len(missing_meta)} IDs (present in images, missing JSON):")
-        print("   " + ", ".join(map(str, missing_meta[:50])) + (" ..." if len(missing_meta) > 50 else ""))
-        print("")
+        print(f"❌ Missing metadata for {len(missing_meta)} IDs:")
+        print("  " + ", ".join(map(str, missing_meta[:50])) + (" ..." if len(missing_meta) > 50 else "") + "\n")
 
-    if expected is not None:
-        if gap_images:
-            print(f"❌ Image ID gaps in expected range {min_id}-{max_id}:")
-            print("   " + ", ".join(map(str, gap_images[:80])) + (" ..." if len(gap_images) > 80 else ""))
-            print("")
-        if gap_meta:
-            print(f"❌ Metadata ID gaps in expected range {min_id}-{max_id}:")
-            print("   " + ", ".join(map(str, gap_meta[:80])) + (" ..." if len(gap_meta) > 80 else ""))
-            print("")
-
-    # JSON validity check
-    bad_json = []
-    for token_id in common:
-        ok, err = try_load_json(meta_ids[token_id])
-        if not ok:
-            bad_json.append((token_id, err))
-
-    if bad_json:
-        print(f"❌ Invalid JSON in {len(bad_json)} metadata files:")
-        for token_id, err in bad_json[:10]:
-            print(f"  - {token_id}.json: {err}")
-        if len(bad_json) > 10:
-            print("  ...")
-        print("")
-    else:
-        print("✅ All overlapping metadata files are valid JSON.")
-        print("")
-
-    # Optional: check metadata image field ends with "<id>.png"
-    if args.check_image_field:
-        mismatches = []
-        for token_id in common:
-            try:
-                with meta_ids[token_id].open("r", encoding="utf-8") as f:
-                    data = json.load(f)
-                img_field = data.get("image", "")
-                if not isinstance(img_field, str) or not img_field.lower().endswith(f"/{token_id}.png") and not img_field.lower().endswith(f"{token_id}.png"):
-                    mismatches.append((token_id, img_field))
-            except Exception as e:
-                mismatches.append((token_id, f"(error reading: {e})"))
-
-        if mismatches:
-            print(f"⚠️ metadata.image field mismatches for {len(mismatches)} tokens (showing up to 10):")
-            for token_id, v in mismatches[:10]:
-                print(f"  - {token_id}.json image: {v}")
-            if len(mismatches) > 10:
-                print("  ...")
-            print("")
-        else:
-            print('✅ metadata["image"] fields look consistent with "<id>.png" (best-effort check).')
-            print("")
-
-    # Exit code: fail if critical issues
-    critical = bool(missing_images or missing_meta or (expected is not None and (gap_images or gap_meta)) or bad_json)
-    if critical:
-        print("❌ Validation FAILED (see issues above).")
+    if missing_images or missing_meta:
         sys.exit(2)
 
-    print("✅ Validation PASSED.")
+    # Auto-run uniqueness validation if metadata exists
+    print("🔍 Validating trait uniqueness...\n")
+    if not validate_uniqueness({i: meta_ids[i] for i in common}):
+        print("❌ Uniqueness validation failed.")
+        sys.exit(3)
+
+    print("✅ All checks passed. Collection is valid and unique.")
     sys.exit(0)
 
 
