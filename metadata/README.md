@@ -1,8 +1,8 @@
-# Metadata Utilities
+# `Metadata Utilities`
 
 A set of lightweight, purpose-built tools for validating and preparing NFT metadata for deployment and marketplace use.
 
-## Tools in this folder
+## Included Tools
 
 ### `validate_supply.py`
 - Automatically verifies matching image (`<id>.png`) and metadata (`<id>.json`) files
@@ -21,13 +21,8 @@ A set of lightweight, purpose-built tools for validating and preparing NFT metad
 - Outputs updated files into `./new_metadata/` (original metadata is left untouched)
 - Prompts for CID interactively at runtime (no CLI arguments)
 
-## Usage Philosophy
-These scripts are built to be:
-- **single-responsibility**
-- **transparent**
-- **batch-friendly**
-- **marketplace-compatible**
-- **safe for iteration and reuse**
+## Usage
+Run any tool from the folder containing your NFT images.
 
-## License
+### License
 MIT
