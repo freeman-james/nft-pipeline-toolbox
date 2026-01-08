@@ -4,10 +4,10 @@ Batch tools for processing NFT images without altering visual quality.
 
 ## Included Tools
 
-### `resize_pngs.py`
+### `resize_png.py`
 - Scales PNG images
 - Preserves transparency
-- Outputs to `resized/`
+- Outputs to `resized_png/`
 
 ### `png_to_webp.py`
 - Converts PNG images to **lossless WebP**
