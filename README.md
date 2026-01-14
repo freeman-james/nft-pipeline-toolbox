@@ -1,4 +1,4 @@
-# `NFT Pipeline Toolbox`
+# `NFT Asset Toolbox`
 
 
 
@@ -28,7 +28,7 @@ metadata output.
 
 ### `image`
 
-Image processing utilities such as batch resizing and optimization.
+Image processing utilities for batch resizing and optimization.
 
 
 
